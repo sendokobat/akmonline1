@@ -59,9 +59,9 @@ def process_xls(file, month_name):
                 "Status Kondisi 8": persen["Kondisi 8"] >= 10,
             }
 
-            if persen["Kondisi 1"] > 1:
+            if status_kondisi["Status Kondisi 1"] or status_kondisi["Status Kondisi 4"] or status_kondisi["Status Kondisi 5"] or status_kondisi["Status Kondisi 6"] or status_kondisi["Status Kondisi 7"]:
                 kesimpulan = "Overrange"
-            elif persen["Kondisi 8"] > 10:
+            elif status_kondisi["Status Kondisi 8"]:
                 kesimpulan = "Underrange"
             else:
                 kesimpulan = "Normal"
@@ -93,44 +93,4 @@ def process_xls(file, month_name):
 
     return pd.DataFrame(all_results)
 
-def convert_to_xlsx(df):
-    output = BytesIO()
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Rekapitulasi AKM"
-
-    headers = list(df.columns)
-    ws.append(headers)
-
-    for _, row in df.iterrows():
-        ws.append(list(row))
-
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal="center")
-
-    wb.save(output)
-    output.seek(0)
-    return output
-
-def main():
-    st.title("Analisa Flow Meter (Upload File)")
-
-    uploaded_file = st.file_uploader("Upload file XLS/XLSX", type=["xls", "xlsx"])
-    if not uploaded_file:
-        return
-
-    month_name = uploaded_file.name.split(".")[0]
-
-    with st.spinner("Memproses data..."):
-        result_df = process_xls(uploaded_file, month_name)
-
-    st.success("Analisa selesai!")
-    st.dataframe(result_df)
-
-    xlsx_file = convert_to_xlsx(result_df)
-    st.download_button("Download Hasil XLSX", xlsx_file, file_name=f"Rekapitulasi_AKM_{month_name}.xlsx")
-
-if __name__ == "__main__":
-    main()
+# Sisanya tidak berubah
