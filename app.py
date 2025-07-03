@@ -1,6 +1,25 @@
 import streamlit as st
 import pandas as pd
 import os
+from io import BytesIO
+
+# Konversi otomatis dari .xls ke .xlsx untuk optimasi
+from openpyxl import Workbook
+
+def convert_xls_to_xlsx(uploaded_file):
+    try:
+        # Baca file .xls
+        xls = pd.ExcelFile(uploaded_file, engine="xlrd")
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            for sheet_name in xls.sheet_names:
+                df = pd.read_excel(xls, sheet_name=sheet_name)
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+        output.seek(0)
+        return output
+    except Exception as e:
+        st.error(f"Gagal konversi file .xls: {e}")
+        return None
 
 # Deteksi Kolom Berdasarkan Merk EVC
 def detect_columns(evcm_name):
@@ -29,24 +48,19 @@ METER_CONFIG = {
 }
 
 # Proses Setiap Sheet
-def process_sheet(sheet_name, sheet_df, month_name, uploaded_file):
+def process_sheet(sheet_name, sheet_df, month_name, data_df):
     try:
         merk_evc = sheet_df.iloc[7, 1] if sheet_df.shape[0] >= 8 and sheet_df.shape[1] >= 2 else "Unknown"
         col_map = detect_columns(merk_evc)
-        data_df = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=12)
 
         flow_col = col_map["flow"]
         flow_min_col = col_map["flow_min"]
         flow_max_col = col_map["flow_max"]
 
-        if flow_col not in data_df.columns:
-            raise Exception(f"Kolom '{flow_col}' tidak ditemukan")
-
         gsize = sheet_df.iloc[9, 1]
         id_ref = sheet_df.iloc[4, 1]
         nama_pelanggan = str(sheet_df.iloc[5, 0]).replace("Place Id:", "").strip()
 
-        # Ambil Qmin dan Qmax dari konfigurasi
         gsize_numeric = int(str(gsize).lower().replace("g", ""))
         qmin, qmax = METER_CONFIG.get(gsize_numeric, (None, None))
 
@@ -124,20 +138,32 @@ def main():
 
         month_name = os.path.splitext(file_name)[0]
 
-        xls = pd.ExcelFile(uploaded_file)
+        # Konversi otomatis .xls ke .xlsx
+        if file_name.endswith(".xls"):
+            converted_file = convert_xls_to_xlsx(uploaded_file)
+            if converted_file is None:
+                return
+            xls = pd.ExcelFile(converted_file)
+        else:
+            xls = pd.ExcelFile(uploaded_file)
+
         all_results = []
 
         for sheet_name in xls.sheet_names:
-            sheet_df = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=None)
-            result = process_sheet(sheet_name, sheet_df, month_name, uploaded_file)
-            if result:
-                all_results.append(result)
+            sheet_df = pd.read_excel(xls, sheet_name=sheet_name, header=None, nrows=14, usecols="A:B")
+            try:
+                col_map = detect_columns(sheet_df.iloc[7, 1])
+                data_df = pd.read_excel(xls, sheet_name=sheet_name, header=12, usecols=lambda col: col in col_map.values())
+                result = process_sheet(sheet_name, sheet_df, month_name, data_df)
+                if result:
+                    all_results.append(result)
+            except Exception as e:
+                st.warning(f"Gagal memproses sheet {sheet_name}: {e}")
 
         if all_results:
             result_df = pd.DataFrame(all_results)
             st.dataframe(result_df)
 
-            # Download hasil
             csv = result_df.to_csv(index=False).encode('utf-8')
             result_df.to_excel("Analisa.xlsx", index=False)
 
