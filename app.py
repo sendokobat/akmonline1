@@ -37,23 +37,31 @@ def process_xls(file, month_name):
             qmin, qmax = METER_CONFIG.get(gsize_numeric, (None, None))
 
             flow_col = "Flow (m3/h)"
-            flow_max_col = "Max. Flow (m3/h)"
-            flow_min_col = "Min. Flow (m3/h)"
-
             total_jam = len(data_df)
-            over_150 = len(data_df[data_df[flow_col] >= 1.5 * qmax])
-            over_120 = len(data_df[(data_df[flow_col] >= 1.2 * qmax) & (data_df[flow_col] < 1.5 * qmax)])
-            over_100 = len(data_df[(data_df[flow_col] >= 1.0 * qmax) & (data_df[flow_col] < 1.2 * qmax)])
-            under = len(data_df[data_df[flow_col] <= qmin])
 
-            persen_150 = over_150 / total_jam * 100
-            persen_120 = over_120 / total_jam * 100
-            persen_100 = over_100 / total_jam * 100
-            persen_under = under / total_jam * 100
+            kondisi = {
+                "Kondisi 1": len(data_df[data_df[flow_col] >= 1.5 * qmax]),
+                "Kondisi 2": len(data_df[(data_df[flow_col] >= 1.2 * qmax) & (data_df[flow_col] < 1.5 * qmax)]),
+                "Kondisi 3": len(data_df[(data_df[flow_col] >= 1.0 * qmax) & (data_df[flow_col] < 1.2 * qmax)]),
+                "Kondisi 8": len(data_df[data_df[flow_col] <= qmin])
+            }
 
-            if persen_150 > 1:
+            persen = {k: v / total_jam * 100 for k, v in kondisi.items()}
+
+            status_kondisi = {
+                "Status Kondisi 1": persen["Kondisi 1"] >= 1,
+                "Status Kondisi 2": persen["Kondisi 2"] >= 10,
+                "Status Kondisi 3": persen["Kondisi 3"] >= 15,
+                "Status Kondisi 4": total_jam >= 50 and (persen["Kondisi 1"] >= 1 or persen["Kondisi 3"] >= 15),
+                "Status Kondisi 5": total_jam >= 50 and (persen["Kondisi 2"] >= 10 or persen["Kondisi 3"] >= 15),
+                "Status Kondisi 6": total_jam >= 50 and (persen["Kondisi 1"] >= 1 or persen["Kondisi 2"] >= 10),
+                "Status Kondisi 7": total_jam >= 30 and (persen["Kondisi 1"] >= 1 and persen["Kondisi 2"] >= 10 and persen["Kondisi 3"] >= 15),
+                "Status Kondisi 8": persen["Kondisi 8"] >= 10,
+            }
+
+            if persen["Kondisi 1"] > 1:
                 kesimpulan = "Overrange"
-            elif persen_under > 10:
+            elif persen["Kondisi 8"] > 10:
                 kesimpulan = "Underrange"
             else:
                 kesimpulan = "Normal"
@@ -65,15 +73,10 @@ def process_xls(file, month_name):
                 "GSize Meter Terpasang": gsize_numeric,
                 "Qmin Meter Terpasang": qmin,
                 "Qmax Meter Terpasang": qmax,
-                "Flowmax 150% >= Qmax (Jam)": over_150,
-                "Flowmax 120% >= Qmax (Jam)": over_120,
-                "Flowmax 100% >= Qmax (Jam)": over_100,
-                "Flowmin <= Qmin (Jam)": under,
+                **kondisi,
                 "Jumlah Jam Operasi": total_jam,
-                "Persentase Flowmax 150% >= Qmax": round(persen_150, 2),
-                "Persentase Flowmax 120% >= Qmax": round(persen_120, 2),
-                "Persentase Flowmax 100% >= Qmax": round(persen_100, 2),
-                "Persentase Flowmin <= Qmin": round(persen_under, 2),
+                **{f"Persentase {k}": round(v, 2) for k, v in persen.items()},
+                **status_kondisi,
                 "Kesimpulan Bulan Ini": kesimpulan,
                 "Tekanan Outlet": "-",
                 "Diameter Spool": "-",
