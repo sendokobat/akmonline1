@@ -1,17 +1,9 @@
 import streamlit as st
 import pandas as pd
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from io import BytesIO
-import time
-import os
+import tempfile
 
 # === CONFIG ===
-AVE_URL = "https://ave.pgncom.co.id/website/account/index.rails"
 METER_CONFIG = {
     16: (0.5, 25),
     25: (0.8, 40),
@@ -27,97 +19,92 @@ METER_CONFIG = {
     2500: (200, 4000),
 }
 
-# === SCRAPER ===
-def login_and_download(username, password):
-    options = Options()
-    options.add_argument('--headless')
-    driver = webdriver.Chrome(options=options)
-
-    driver.get(AVE_URL)
-
-    # Login
-    driver.find_element(By.NAME, "name").send_keys(username)
-    driver.find_element(By.NAME, "password").send_keys(password)
-    driver.find_element(By.XPATH, "//input[@type='submit']").click()
-
-    # Wait for main page to load
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "ext-gen92")))
-
-    # Example: scrape table or trigger download here (sesuaikan dengan kebutuhanmu)
-
-    # Close driver
-    driver.quit()
-
-    # Simulasi hasil download file
-    return "downloaded_file.xls"
-
-# === ANALYSIS ===
-def process_xls(file_path, month_name):
+def process_xls(file, month_name):
     all_results = []
-    xls = pd.ExcelFile(file_path)
+    xls = pd.ExcelFile(file)
 
     for sheet_name in xls.sheet_names:
-        df_header = pd.read_excel(file_path, sheet_name=sheet_name, header=None, nrows=14, usecols="A:B")
-        merk_evc = df_header.iloc[7, 1]
-        gsize_raw = df_header.iloc[9, 1]
-        gsize_numeric = int(str(gsize_raw).lower().replace("g", ""))
-        qmin, qmax = METER_CONFIG.get(gsize_numeric, (None, None))
+        try:
+            sheet_df = pd.read_excel(file, sheet_name=sheet_name, header=None, nrows=14, usecols="A:B")
+            data_df = pd.read_excel(file, sheet_name=sheet_name, header=12, usecols=[14, 15, 16])  # Hanya ambil kolom flow
 
-        df_data = pd.read_excel(file_path, sheet_name=sheet_name, header=12)
+            nama_pelanggan = str(sheet_df.iloc[5, 0]).replace("Place Id:", "").strip()
+            id_ref = sheet_df.iloc[4, 1]
+            merk_evc = sheet_df.iloc[7, 1]
+            gsize_raw = sheet_df.iloc[9, 1]
+            gsize_numeric = int(str(gsize_raw).lower().replace("g", ""))
 
-        flow_col = "Flow (m3/h)"
+            qmin, qmax = METER_CONFIG.get(gsize_numeric, (None, None))
 
-        total_jam = len(df_data)
-        over_150 = len(df_data[df_data[flow_col] >= 1.5 * qmax])
-        over_120 = len(df_data[(df_data[flow_col] >= 1.2 * qmax) & (df_data[flow_col] < 1.5 * qmax)])
-        over_100 = len(df_data[(df_data[flow_col] >= 1.0 * qmax) & (df_data[flow_col] < 1.2 * qmax)])
-        under = len(df_data[df_data[flow_col] <= qmin])
+            flow_col = "Flow (m3/h)"
+            data_df.columns = [flow_col, "Min. Flow (m3/h)", "Max. Flow (m3/h)"]
 
-        persen_150 = over_150 / total_jam * 100
-        persen_120 = over_120 / total_jam * 100
-        persen_100 = over_100 / total_jam * 100
-        persen_under = under / total_jam * 100
+            total_jam = len(data_df)
+            over_150 = len(data_df[data_df[flow_col] >= 1.5 * qmax])
+            over_120 = len(data_df[(data_df[flow_col] >= 1.2 * qmax) & (data_df[flow_col] < 1.5 * qmax)])
+            over_100 = len(data_df[(data_df[flow_col] >= 1.0 * qmax) & (data_df[flow_col] < 1.2 * qmax)])
+            under = len(data_df[data_df[flow_col] <= qmin])
 
-        if persen_150 > 1:
-            kesimpulan = "Overrange"
-        elif persen_under > 10:
-            kesimpulan = "Underrange"
-        else:
-            kesimpulan = "Normal"
+            persen_150 = over_150 / total_jam * 100
+            persen_120 = over_120 / total_jam * 100
+            persen_100 = over_100 / total_jam * 100
+            persen_under = under / total_jam * 100
 
-        all_results.append({
-            "Sheet": sheet_name,
-            "GSize": gsize_raw,
-            "Qmin": qmin,
-            "Qmax": qmax,
-            "Total Jam": total_jam,
-            "Persen Flow >=150%": persen_150,
-            "Persen Flow >=120%": persen_120,
-            "Persen Flow >=100%": persen_100,
-            "Persen Flow <=Qmin": persen_under,
-            "Kesimpulan Bulan {}".format(month_name): kesimpulan
-        })
+            if persen_150 > 1:
+                kesimpulan = "Overrange"
+            elif persen_under > 10:
+                kesimpulan = "Underrange"
+            else:
+                kesimpulan = "Normal"
+
+            all_results.append({
+                "No": len(all_results) + 1,
+                "ID Ref": id_ref,
+                "Nama Pelanggan": nama_pelanggan,
+                "GSize": gsize_numeric,
+                "Qmin Meter": qmin,
+                "Qmax Meter": qmax,
+                "Flowmax 150% >= Qmax": over_150,
+                "Flowmax 120% >= Qmax": over_120,
+                "Flowmax 100% >= Qmax": over_100,
+                "Flowmin <= Qmin": under,
+                "Jumlah Jam Operasi": total_jam,
+                "Persentase Flowmax 150% >= Qmax": round(persen_150, 2),
+                "Persentase Flowmax 120% >= Qmax": round(persen_120, 2),
+                "Persentase Flowmax 100% >= Qmax": round(persen_100, 2),
+                "Persentase Flowmin <= Qmin": round(persen_under, 2),
+                f"Kesimpulan Bulan {month_name}": kesimpulan
+            })
+
+        except Exception as e:
+            st.warning(f"Gagal memproses sheet {sheet_name}: {e}")
 
     return pd.DataFrame(all_results)
 
-# === STREAMLIT UI ===
+def convert_to_xlsx(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Hasil Analisa')
+    output.seek(0)
+    return output
+
 def main():
-    st.title("AVE Flow Analysis")
+    st.title("Analisa Flow Meter (Upload File)")
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    uploaded_file = st.file_uploader("Upload file XLS/XLSX", type=["xls", "xlsx"])
+    if not uploaded_file:
+        return
 
-    if st.button("Login & Download"):
-        with st.spinner("Downloading data..."):
-            file_path = login_and_download(username, password)
+    month_name = uploaded_file.name.split(".")[0]
 
-        st.success("Download complete: " + file_path)
+    with st.spinner("Memproses data..."):
+        result_df = process_xls(uploaded_file, month_name)
 
-        month_name = "Juli2025"
-        result_df = process_xls(file_path, month_name)
-        st.dataframe(result_df)
+    st.success("Analisa selesai!")
+    st.dataframe(result_df)
 
-        st.download_button("Download Hasil CSV", data=result_df.to_csv(index=False), file_name="hasil.csv")
+    xlsx_file = convert_to_xlsx(result_df)
+    st.download_button("Download Hasil XLSX", xlsx_file, file_name=f"Analisa_{month_name}.xlsx")
 
 if __name__ == "__main__":
     main()
