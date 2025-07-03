@@ -8,7 +8,6 @@ from openpyxl import Workbook
 
 def convert_xls_to_xlsx(uploaded_file):
     try:
-        # Baca file .xls
         xls = pd.ExcelFile(uploaded_file, engine="xlrd")
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -138,7 +137,6 @@ def main():
 
         month_name = os.path.splitext(file_name)[0]
 
-        # Konversi otomatis .xls ke .xlsx
         if file_name.endswith(".xls"):
             converted_file = convert_xls_to_xlsx(uploaded_file)
             if converted_file is None:
@@ -153,7 +151,7 @@ def main():
             sheet_df = pd.read_excel(xls, sheet_name=sheet_name, header=None, nrows=14, usecols="A:B")
             try:
                 col_map = detect_columns(sheet_df.iloc[7, 1])
-                data_df = pd.read_excel(xls, sheet_name=sheet_name, header=12, usecols=lambda col: col in col_map.values())
+                data_df = pd.read_excel(xls, sheet_name=sheet_name, header=12, usecols=list(col_map.values()))
                 result = process_sheet(sheet_name, sheet_df, month_name, data_df)
                 if result:
                     all_results.append(result)
