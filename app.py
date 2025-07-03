@@ -41,6 +41,17 @@ def process_sheet(sheet_name, sheet_df, month_name, uploaded_file):
         persen_100 = over_100 / total_jam * 100
         persen_under = under / total_jam * 100
 
+        kondisi = {
+            "Kondisi 1": persen_150 > 1,
+            "Kondisi 2": persen_120 > 10,
+            "Kondisi 3": persen_100 > 15,
+            "Kondisi 4": persen_150 >= 0.5 and persen_100 >= 7.5,
+            "Kondisi 5": persen_120 >= 5 and persen_100 >= 7.5,
+            "Kondisi 6": persen_150 >= 0.5 and persen_120 >= 5,
+            "Kondisi 7": persen_150 >= 0.3 and persen_120 >= 3 and persen_100 >= 4.5,
+            "Kondisi 8": persen_under > 0
+        }
+
         if persen_150 > 1:
             kesimpulan = "Overrange"
         elif persen_under > 10:
@@ -49,16 +60,30 @@ def process_sheet(sheet_name, sheet_df, month_name, uploaded_file):
             kesimpulan = "Normal"
 
         return {
-            "Nama Pelanggan": nama_pelanggan,
+            "Nomor": "",
             "ID Ref": id_ref,
-            "Gsize": gsize,
-            "Total Jam": total_jam,
-            "Persen Flow >=150%": persen_150,
-            "Persen Flow >=120%": persen_120,
-            "Persen Flow >=100%": persen_100,
-            "Persen Flow <=Qmin": persen_under,
+            "Nama Pelanggan": nama_pelanggan,
+            "GSize": gsize,
+            "Qmin - Qmax": f"{data_df[flow_min_col].min()} - {data_df[flow_max_col].max()}",
+            "Flowmax 150% >= Qmax": over_150,
+            "Flowmax 120% >= Qmax": over_120,
+            "Flowmax 100% >= Qmax": over_100,
+            "Flowmin <= Qmin": under,
+            "Jumlah Jam Operasi": total_jam,
+            "Persen Flowmax 150% >= Qmax": persen_150,
+            "Persen Flowmax 120% >= Qmax": persen_120,
+            "Persen Flowmax 100% >= Qmax": persen_100,
+            "Persen Flowmin <= Qmin": persen_under,
+            **kondisi,
+            "Pressure Outlet": data_df[col_map["pressure"]].mean() if col_map.get("pressure") in data_df.columns else None,
+            "Diameter Spool": "",
             f"Kesimpulan Bulan {month_name}": kesimpulan,
-            "Tekanan Outlet": data_df[col_map["pressure"]].mean() if col_map.get("pressure") in data_df.columns else None
+            "Kesimpulan Bulan Lalu": "",
+            "Kesimpulan Bulan Lalunya Lagi": "",
+            "Status Meter": "",
+            "Tipe Penyesuaian": "",
+            "Nilai Penyesuaian": "",
+            "Keterangan": ""
         }
 
     except Exception as e:
@@ -93,24 +118,12 @@ def main():
 
             # Download hasil
             csv = result_df.to_csv(index=False).encode('utf-8')
-            excel_output = pd.ExcelWriter(f"Analisa_{month_name}.xlsx", engine='xlsxwriter')
-            result_df.to_excel(excel_output, index=False)
-            excel_output.close()
+            result_df.to_excel("Analisa.xlsx", index=False)
 
-            st.download_button(
-                label="Download Hasil CSV",
-                data=csv,
-                file_name=f"Analisa_{month_name}.csv",
-                mime="text/csv"
-            )
+            st.download_button("Download Hasil CSV", data=csv, file_name=f"Analisa_{month_name}.csv", mime="text/csv")
 
-            with open(f"Analisa_{month_name}.xlsx", "rb") as f:
-                st.download_button(
-                    label="Download Hasil Excel",
-                    data=f.read(),
-                    file_name=f"Analisa_{month_name}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+            with open("Analisa.xlsx", "rb") as f:
+                st.download_button("Download Hasil Excel", data=f.read(), file_name=f"Analisa_{month_name}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 if __name__ == "__main__":
     main()
