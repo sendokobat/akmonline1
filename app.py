@@ -29,6 +29,8 @@ def process_sheet(sheet_name, sheet_df, month_name, uploaded_file):
         gsize = sheet_df.iloc[9, 1]
         id_ref = sheet_df.iloc[4, 1]
         nama_pelanggan = str(sheet_df.iloc[5, 0]).replace("Place Id:", "").strip()
+        qmin = sheet_df.iloc[9, 1]
+        qmax = sheet_df.iloc[9, 1]
 
         total_jam = len(data_df)
         over_150 = len(data_df[data_df[flow_col] >= 1.5 * data_df[flow_max_col]])
@@ -64,7 +66,8 @@ def process_sheet(sheet_name, sheet_df, month_name, uploaded_file):
             "ID Ref": id_ref,
             "Nama Pelanggan": nama_pelanggan,
             "GSize": gsize,
-            "Qmin - Qmax": f"{data_df[flow_min_col].min()} - {data_df[flow_max_col].max()}",
+            "Qmin": qmin,
+            "Qmax": qmax,
             "Flowmax 150% >= Qmax": over_150,
             "Flowmax 120% >= Qmax": over_120,
             "Flowmax 100% >= Qmax": over_100,
