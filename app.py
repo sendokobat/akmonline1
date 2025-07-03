@@ -12,6 +12,22 @@ def detect_columns(evcm_name):
     else:
         raise Exception(f"Merk EVC '{evcm_name}' tidak dikenali")
 
+# Konfigurasi GSize
+METER_CONFIG = {
+    16: (0.5, 25),
+    25: (0.8, 40),
+    40: (8, 65),
+    65: (10, 100),
+    100: (16, 160),
+    160: (13, 250),
+    250: (20, 400),
+    400: (32, 650),
+    650: (50, 1000),
+    1000: (80, 1600),
+    1600: (125, 2500),
+    2500: (200, 4000),
+}
+
 # Proses Setiap Sheet
 def process_sheet(sheet_name, sheet_df, month_name, uploaded_file):
     try:
@@ -29,8 +45,10 @@ def process_sheet(sheet_name, sheet_df, month_name, uploaded_file):
         gsize = sheet_df.iloc[9, 1]
         id_ref = sheet_df.iloc[4, 1]
         nama_pelanggan = str(sheet_df.iloc[5, 0]).replace("Place Id:", "").strip()
-        qmin = sheet_df.iloc[9, 1]
-        qmax = sheet_df.iloc[9, 1]
+
+        # Ambil Qmin dan Qmax dari konfigurasi
+        gsize_numeric = int(str(gsize).lower().replace("g", ""))
+        qmin, qmax = METER_CONFIG.get(gsize_numeric, (None, None))
 
         total_jam = len(data_df)
         over_150 = len(data_df[data_df[flow_col] >= 1.5 * data_df[flow_max_col]])
