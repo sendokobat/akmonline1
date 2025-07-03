@@ -51,10 +51,10 @@ def process_sheet(sheet_name, sheet_df, month_name, uploaded_file):
         qmin, qmax = METER_CONFIG.get(gsize_numeric, (None, None))
 
         total_jam = len(data_df)
-        over_150 = len(data_df[data_df[flow_col] >= 1.5 * data_df[flow_max_col]])
-        over_120 = len(data_df[(data_df[flow_col] >= 1.2 * data_df[flow_max_col]) & (data_df[flow_col] < 1.5 * data_df[flow_max_col])])
-        over_100 = len(data_df[(data_df[flow_col] >= 1.0 * data_df[flow_max_col]) & (data_df[flow_col] < 1.2 * data_df[flow_max_col])])
-        under = len(data_df[data_df[flow_col] <= data_df[flow_min_col]])
+        over_150 = len(data_df[data_df[flow_col] >= 1.5 * qmax])
+        over_120 = len(data_df[(data_df[flow_col] >= 1.2 * qmax) & (data_df[flow_col] < 1.5 * qmax)])
+        over_100 = len(data_df[(data_df[flow_col] >= 1.0 * qmax) & (data_df[flow_col] < 1.2 * qmax)])
+        under = len(data_df[data_df[flow_col] <= qmin])
 
         persen_150 = over_150 / total_jam * 100
         persen_120 = over_120 / total_jam * 100
